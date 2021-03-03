@@ -4,7 +4,7 @@
 
 locals {
   ecr_repo    = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/${var.app_prefix}-repo"
-  s3_bucket   = "${aws_s3_bucket.stepfunction_ecs_source_s3bucket.bucket}" 
+  s3_bucket   = "${aws_s3_bucket.stepfunction_ecs_source_s3bucket.bucket}"
   stream_name = "${aws_kinesis_stream.stepfunction_ecs_kinesis_stream.arn}"
   region      = "${data.aws_region.current.name}"
   log_group   = "${aws_cloudwatch_log_group.stepfunction_ecs_container_cloudwatch_loggroup.name}"
@@ -20,7 +20,7 @@ resource "aws_ecs_cluster" "stepfunction_ecs_cluster" {
     Name = "${var.app_prefix}-ecs-fargate-cluster"
   }
 }
-
+# GOTCHA: https://stackoverflow.com/a/63085123/4856151
 resource "aws_ecs_task_definition" "stepfunction_ecs_task_definition" {
   family                   = "${var.app_prefix}-ECSTaskDefinition"
   task_role_arn            = "${aws_iam_role.stepfunction_ecs_task_role.arn}"
@@ -29,7 +29,7 @@ resource "aws_ecs_task_definition" "stepfunction_ecs_task_definition" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
   memory                   = "1024"
-  container_definitions = <<DEFINITION
+  container_definitions    = <<DEFINITION
 [
   {
     "logConfiguration": {
@@ -47,7 +47,7 @@ resource "aws_ecs_task_definition" "stepfunction_ecs_task_definition" {
     "dockerSecurityOptions":[],
     "essential":true,
     "extraHosts":[],
-    "image": "${local.ecr_repo}",
+    "image": "${aws_ecr_repository.stepfunction_ecs_ecr_repo.repository_url}:latest",
     "links":[],
     "mountPoints":[],
     "name": "fargate-app",
@@ -60,11 +60,11 @@ resource "aws_ecs_task_definition" "stepfunction_ecs_task_definition" {
     ],
     "ulimits":[],
     "volumesFrom":[],
+      "secrets": [],
     "environment": [
         {"name": "REGION", "value": "${local.region}"},
-        {"name": "S3_BUCKET", "value": "${aws_s3_bucket.stepfunction_ecs_source_s3bucket.bucket}"},
-        {"name": "STREAM_NAME", "value": "${aws_kinesis_stream.stepfunction_ecs_kinesis_stream.name}"}
-    ]
+        {"name":"IS_ECS", "value":"True"}
+      ]
   }
 ]
 DEFINITION

@@ -32,3 +32,9 @@ samples/*
 .idea/*
 ecsFargateService.iml
 *DS_Store*
+outfile
+.tfstate
+*.tfvars
+.terraform/
+outfile
+*.tfstate

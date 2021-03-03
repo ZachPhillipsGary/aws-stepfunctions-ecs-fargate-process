@@ -39,10 +39,14 @@ resource "aws_route_table" "stepfunction_ecs_route_table" {
   vpc_id = "${aws_vpc.stepfunction_ecs_vpc.id}"
 }
 
-resource aws_route "stepfunction_ecs_public_route" {
+resource "aws_route" "stepfunction_ecs_public_route" {
   route_table_id         = "${aws_route_table.stepfunction_ecs_route_table.id}"
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = "${aws_internet_gateway.stepfunction_ecs_igw.id}"
+  lifecycle {
+    ignore_changes = ["gateway_id"]
+  }
+
 }
 
 resource "aws_route_table_association" "stepfunction_ecs_route_table_association1" {
@@ -59,8 +63,8 @@ resource "aws_eip" "stepfunction_elastic_ip" {
 }
 
 resource "aws_nat_gateway" "stepfunction_ecs_ngw" {
-  allocation_id = "${aws_eip.stepfunction_elastic_ip.id}" 
-  subnet_id = "${aws_subnet.stepfunction_ecs_public_subnet1.id}" 
+  allocation_id = "${aws_eip.stepfunction_elastic_ip.id}"
+  subnet_id     = "${aws_subnet.stepfunction_ecs_public_subnet1.id}"
 
   tags = {
     "Name" = "${var.app_prefix}-NATGateway"
@@ -71,10 +75,14 @@ resource "aws_route_table" "stepfunction_ngw_route_table" {
   vpc_id = "${aws_vpc.stepfunction_ecs_vpc.id}"
 }
 
-resource aws_route "stepfunction_ngw_route" {
+resource "aws_route" "stepfunction_ngw_route" {
   route_table_id         = "${aws_route_table.stepfunction_ngw_route_table.id}"
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = "${aws_nat_gateway.stepfunction_ecs_ngw.id}"
+  lifecycle {
+    ignore_changes = ["gateway_id"]
+  }
+
 }
 
 resource "aws_route_table_association" "stepfunction_ngw_route_table_association1" {
@@ -85,11 +93,15 @@ resource "aws_route_table_association" "stepfunction_ngw_route_table_association
 resource "aws_route_table" "stepfunction_vpce_route_table" {
   vpc_id = "${aws_vpc.stepfunction_ecs_vpc.id}"
 }
-
-resource aws_route "stepfunction_vpce_route" {
+#stupid thing: https://github.com/hashicorp/terraform/issues/9805
+resource "aws_route" "stepfunction_vpce_route" {
   route_table_id         = "${aws_route_table.stepfunction_vpce_route_table.id}"
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = "${aws_nat_gateway.stepfunction_ecs_ngw.id}"
+  lifecycle {
+    ignore_changes = ["gateway_id"]
+  }
+
 }
 
 resource "aws_vpc_endpoint_route_table_association" "stepfunction_ngw_route_table_association2" {
@@ -98,9 +110,9 @@ resource "aws_vpc_endpoint_route_table_association" "stepfunction_ngw_route_tabl
 }
 
 resource "aws_security_group" "stepfunction_ecs_security_group" {
-  name                   = "${var.app_prefix}-ECSSecurityGroup"
-  description            = "ECS Allowed Ports"
-  vpc_id                 = "${aws_vpc.stepfunction_ecs_vpc.id}"
+  name        = "${var.app_prefix}-ECSSecurityGroup"
+  description = "ECS Allowed Ports"
+  vpc_id      = "${aws_vpc.stepfunction_ecs_vpc.id}"
 }
 
 resource "aws_security_group_rule" "stepfunction_ecs_security_group_rule" {

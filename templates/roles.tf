@@ -3,8 +3,8 @@
 ### SPDX-License-Identifier: MIT-0
 
 locals {
-  iam_role_name       = "${var.app_prefix}-ECSRunTaskSyncExecutionRole"
-  iam_policy_name     = "FargateTaskNotificationAccessPolicy"
+  iam_role_name             = "${var.app_prefix}-ECSRunTaskSyncExecutionRole"
+  iam_policy_name           = "FargateTaskNotificationAccessPolicy"
   iam_task_role_policy_name = "${var.app_prefix}-ECS-Task-Role-Policy"
 }
 
@@ -121,7 +121,7 @@ EOF
 
 resource "aws_iam_role" "stepfunction_ecs_task_execution_role" {
   name = "${var.app_prefix}-ECS-TaskExecution-Role"
- 
+
   assume_role_policy = <<EOF
 {
  "Version": "2012-10-17",
@@ -140,7 +140,7 @@ EOF
 }
 resource "aws_iam_role" "stepfunction_ecs_task_role" {
   name = "${var.app_prefix}-ECS-Task-Role"
- 
+
   assume_role_policy = <<EOF
 {
  "Version": "2012-10-17",
@@ -157,7 +157,7 @@ resource "aws_iam_role" "stepfunction_ecs_task_role" {
 }
 EOF
 }
- 
+
 resource "aws_iam_role_policy_attachment" "ecs-task-execution-role-policy-attachment" {
   role       = "${aws_iam_role.stepfunction_ecs_task_execution_role.name}"
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
@@ -171,8 +171,8 @@ resource "aws_iam_role_policy_attachment" "ecs_task_role_s3_attachment" {
 
 
 resource "aws_iam_role_policy" "ecs_task_role_s3_attachment_policy" {
-  name = "${local.iam_task_role_policy_name}"
-  role = "${aws_iam_role.stepfunction_ecs_task_role.id}"
+  name   = "${local.iam_task_role_policy_name}"
+  role   = "${aws_iam_role.stepfunction_ecs_task_role.id}"
   policy = <<EOF
 {
     "Version": "2012-10-17",
@@ -185,6 +185,16 @@ resource "aws_iam_role_policy" "ecs_task_role_s3_attachment_policy" {
                 "s3:list*"
             ],
             "Resource": "*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+                "secretsmanager:GetResourcePolicy",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:ListSecretVersionIds"
+],
+          "Resource": "*"
         },
          {
             "Effect": "Allow",
@@ -233,7 +243,7 @@ resource "aws_iam_role_policy_attachment" "ecs_delivery_role_kinesis_attachment"
 resource "aws_iam_role_policy" "ecs_firehose_delivery_role_policy" {
   name = "${local.iam_policy_name}"
   role = "${aws_iam_role.ecs_firehose_delivery_role.id}"
-  
+
   policy = <<EOF
 {
     "Version": "2012-10-17",
@@ -265,6 +275,72 @@ resource "aws_iam_role_policy" "ecs_firehose_delivery_role_policy" {
             "Resource": [
                 "${aws_kinesis_stream.stepfunction_ecs_kinesis_stream.arn}"
             ]
+        }
+    ]
+}
+EOF
+}
+
+# Define an IAM role for the invoker lambda
+resource "aws_iam_role" "invoker" {
+  name               = "${local.iam_role_name}_involker_lambda_role"
+  assume_role_policy = data.aws_iam_policy_document.invoker.json
+}
+
+# define whom can assume this role
+
+data "aws_iam_policy_document" "invoker" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+
+resource "aws_iam_role_policy" "invoker_policy" {
+  name = "${local.iam_policy_name}"
+  role = "${aws_iam_role.invoker.id}"
+  # Policy type: Inline policy
+  policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogStream",
+                "logs:GetLogEvents",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:GetRole",
+                "iam:PassRole"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Action": [
+                "ecs:RunTask"
+            ],
+            "Resource": [
+                "${aws_ecs_task_definition.stepfunction_ecs_task_definition.arn}"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "ecs:StopTask",
+                "ecs:DescribeTasks"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
         }
     ]
 }
